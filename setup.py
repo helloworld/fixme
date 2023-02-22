@@ -31,9 +31,7 @@ setup(
         [console_scripts]
         fixme=fixme.cli:cli
     """,
-    install_requires=["click"],
-    extras_require={
-        "test": ["pytest"]
-    },
+    install_requires=["click", "openai", "rich"],
+    extras_require={"test": ["pytest"]},
     python_requires=">=3.7",
 )
