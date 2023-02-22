@@ -34,7 +34,7 @@ def cli():
     "full_command",
 )
 @require_openai_api_key
-def command(full_command, option):
+def command(full_command):
     "Fixes issues based on the output of the command"
 
     subprocess.call(
@@ -56,5 +56,3 @@ def command(full_command, option):
     )
 
     controller.run()
-
-   
