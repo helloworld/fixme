@@ -1,7 +1,10 @@
+from contextlib import contextmanager
+import tempfile
 import openai
 import subprocess
 import re
 from rich.console import Console
+from rich.spinner import Spinner
 from rich.panel import Panel
 from rich.pretty import Pretty
 from fixme.prompts import (
@@ -9,11 +12,12 @@ from fixme.prompts import (
     diagnose_issue_prompt,
     generate_patch_prompt,
 )
-from fixme.utils import memoize_function_to_disk
 
 console = Console()
-DEBUG = False
+spinner = Spinner('dots')
 
+DEBUG = False
+STATUS_COUNT = 1
 
 class Controller:
     def __init__(self, command, stdout, stderr):
@@ -22,8 +26,12 @@ class Controller:
         self.stderr = stderr
         self.cwd = subprocess.check_output("pwd", shell=True).decode().strip()
 
-    def _print_status(self, status):
-        console.print(f"[bold blue]{status}[/bold blue]")
+    @contextmanager
+    def _status(self, status):
+        global STATUS_COUNT
+        with console.status(f"[bold blue]{STATUS_COUNT}. {status}[/bold blue]"):
+            yield
+        STATUS_COUNT += 1
 
     def _print_prompt(self, prompt):
         console.print(
@@ -43,8 +51,11 @@ class Controller:
             ),
         )
 
-    def _request_completion(self, prompt):
-        def _request_completion(prompt):
+    def _request_completion(self, prompt, print_prompt=False):
+        # if print_prompt: 
+        #     self._print_prompt(prompt)
+
+        def _request(prompt):
             return openai.Completion.create(
                 engine="text-davinci-003",
                 prompt=prompt,
@@ -54,7 +65,7 @@ class Controller:
                 temperature=0.7,
             )
 
-        response = _request_completion(prompt)
+        response = _request(prompt)
 
         if DEBUG:
             console.print(
@@ -86,49 +97,48 @@ class Controller:
             return False, e.output.decode()
 
     def gather_information(self):
-        console.print(
-            "[bold blue]1. Figuring out what information to gather...[/bold blue]"
-        )
+        with self._status(
+            "Figuring out what information to gather..."
+        ):
+            prompt = gather_information_prompt(
+                self.command, self.stdout, self.stderr, self.cwd
+            )
+            response = self._request_completion(prompt)
 
-        gathered_info = []
-        prompt = gather_information_prompt(
-            self.command, self.stdout, self.stderr, self.cwd
-        )
-        self._print_prompt(prompt)
-        response = self._request_completion(prompt)
         self._print_response(response, header="Information to gather:")
+        gathered_info = []
 
-        console.print("\n[bold blue]2. Gathering information...[/bold blue]")
-
-        for message in response.split("\n"):
-            if "LIST_FILES_IN_DIRECTORY(" in message:
-                path = re.search(r"\(([^)]+)", message).group(1)
-                command = f"ls {path}"
-                (_, output) = self._run_subprocess_command(command)
-                gathered_info.append((message, output))
-            elif "CAT_FILE(" in message:
-                path = re.search(r"\(([^)]+)", message).group(1)
-                command = f"cat -n {path}"
-                (_, output) = self._run_subprocess_command(command)
-                gathered_info.append((message, output))
-            elif "GREP(" in message:
-                path, search_string = (
-                    re.search(r"\(([^)]+)", message).group(1).split(",")
-                )
-                command = f"git grep -Rn {search_string} {path}"
-                (success, output) = self._run_subprocess_command(command)
-                if success and len(output) < 2000:
+        with self._status("Gathering information..."):
+            for message in response.split("\n"):
+                if "LIST_FILES_IN_DIRECTORY(" in message:
+                    path = re.search(r"\(([^)]+)", message).group(1)
+                    command = f"ls {path}"
+                    (_, output) = self._run_subprocess_command(command)
                     gathered_info.append((message, output))
+                elif "CAT_FILE(" in message:
+                    path = re.search(r"\(([^)]+)", message).group(1)
+                    command = f"cat -n {path}"
+                    (_, output) = self._run_subprocess_command(command)
+                    gathered_info.append((message, output))
+                elif "GREP(" in message:
+                    path, search_string = (
+                        re.search(r"\(([^)]+)", message).group(1).split(",")
+                    )
+                    command = f"git grep -Rn {search_string} {path}"
+                    (success, output) = self._run_subprocess_command(command)
+                    if success and len(output) < 2000:
+                        gathered_info.append((message, output))
 
         return gathered_info
 
     def diagnose_issue(self, gathered_info):
-        console.print("[bold blue]3. Diagnosing issue...[/bold blue]")
-        prompt = diagnose_issue_prompt(
-            self.command, self.stdout, self.stderr, self.cwd, gathered_info
-        )
-        self._print_prompt(prompt)
-        response = self._request_completion(prompt)
+        with self._status("Diagnosing issue..."):
+            prompt = diagnose_issue_prompt(
+                self.command, self.stdout, self.stderr, self.cwd, gathered_info
+            )
+            # self._print_prompt(prompt)
+            response = self._request_completion(prompt)
+
         self._print_response(response, header="Issue Diagnosis:")
         return response
 
@@ -142,20 +152,29 @@ class Controller:
             return None
 
     def generate_patch(self, gathered_info, issue_diagnosis):
-        console.print("[bold blue]4. Generating patch...[/bold blue]")
-        prompt = generate_patch_prompt(
-            self.command,
-            self.stdout,
-            self.stderr,
-            self.cwd,
-            gathered_info,
-            issue_diagnosis,
-        )
-        self._print_prompt(prompt)
-        response = self._request_completion(prompt)
+        with self._status("Generating patch..."):
+            prompt = generate_patch_prompt(
+                self.command,
+                self.stdout,
+                self.stderr,
+                self.cwd,
+                gathered_info,
+                issue_diagnosis,
+            )
+            # self._print_prompt(prompt)
+            response = self._request_completion(prompt)
+
         patch = self._parse_patch_from_response(response)
-        self._print_response(response, header="Potential Patch:")
-        self._print_response(patch, header="Parsed Patch:")
+        success, validated_patch = self.validate_patch(patch)
+
+        if success:
+            console.print("[bold green]Patch generated successfully:[/bold green]")
+            console.print(validated_patch)
+
+        else:
+            console.print("[bold red]Could not generate a valid patch but here's a best guess...[/bold red]")
+            console.print(patch)
+
         return patch
 
     def validate_patch(self, patch, retries=0, max_retries=5):
@@ -169,24 +188,25 @@ class Controller:
             )
             return
 
-        console.print("[bold blue]4. Validating patch...[/bold blue]")
-        try:
-            subprocess.run(f"git apply {patch}", shell=True, check=True)
-            console.print("[bold green]Patch applied successfully![/bold green]")
-        except subprocess.CalledProcessError as e:
-            console.print(
-                Panel.fit(
-                    str(e),
-                    title="Error",
-                    border_style="red",
-                ),
-            )
-            console.print("[bold blue]Fixing patch...[/bold blue]")
-            prompt = (
-                f"Here is the issue with the patch:\n{str(e)}\n\nCan you fix the patch?"
-            )
-            self._print_prompt(prompt)
-            response = self._request_completion(prompt)
-            return self.validate_patch(
-                response, retries=retries + 1, max_retries=max_retries
-            )
+        # Write patch to temporary file
+
+        with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
+            f.write(patch)
+            f.flush()
+            patch_file = f.name
+
+            with self._status("Validating patch..."):      
+                try:
+                    subprocess.run(f"git apply --check {patch_file}", shell=True, check=True)
+                    return True, patch
+
+                except subprocess.CalledProcessError as e:
+                    console.print(f"[bold blue]Patch was incorrect. Fixing patch [attempt {retries + 1}]...[/bold blue]")
+                    prompt = (
+                        f"Here is the issue with the patch:\n{str(e)}\n\nCan you fix the patch?"
+                    )
+                    # self._print_prompt(prompt)
+                    response = self._request_completion(prompt)
+                    return self.validate_patch(
+                        response, retries=retries + 1, max_retries=max_retries
+                    )
