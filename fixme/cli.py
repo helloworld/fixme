@@ -39,9 +39,16 @@ Examples:
     type=click.UNPROCESSED,  # Keeps the raw input format
     required=False,
 )
+@click.option(
+    "--model",
+    "-m",
+    "model",
+    default="gpt-4",
+    help="The chat model to use for the AI. Defaults to gpt-4. See https://beta.openai.com/docs/api-reference/models for more information.",
+)
 @click.pass_context
 @require_api_key
-def cli(ctx: click.Context, full_command: str, openai_api_key: str):
+def cli(ctx: click.Context, full_command: str, model: str, openai_api_key: str):
     if ctx.invoked_subcommand is not None:
         return
 
@@ -97,7 +104,7 @@ def cli(ctx: click.Context, full_command: str, openai_api_key: str):
 
     cwd = subprocess.check_output("pwd", shell=True).decode().strip()
 
-    client = OpenAIAPI(api_key=openai_api_key)
+    client = OpenAIAPI(api_key=openai_api_key, model=model)
     session = Session(
         fixme_client=client,
         command=full_command_joined,

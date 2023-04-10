@@ -66,13 +66,14 @@ class API(ABC):
 
 
 class OpenAIAPI(API):
-    def __init__(self, api_key):
+    def __init__(self, api_key, model):
         self._api_key = api_key
+        self._model = model
 
     def request_completion(self, prompt, stream=False):
         def _request_chatgpt(prompt):
             response = openai.ChatCompletion.create(
-                model="gpt-4",
+                model=self._model,
                 messages=[
                     {
                         "role": "system",
