@@ -32,7 +32,7 @@ setup(
         [console_scripts]
         fixme=fixme.cli:cli
     """,
-    install_requires=["click", "openai", "rich"],
+    install_requires=["click", "openai", "rich", "pydantic"],
     extras_require={
         "black": ["black"],
         "pyright": ["pyright"],
