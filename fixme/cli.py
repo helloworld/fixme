@@ -79,7 +79,10 @@ def cli(ctx: click.Context, full_command: str, model: str, openai_api_key: str):
         delete=False
     ) as stdout, tempfile.NamedTemporaryFile(delete=False) as stderr:
         process = subprocess.Popen(
-            full_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+            full_command_joined,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
         )
 
         print_labels = False
