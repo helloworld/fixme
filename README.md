@@ -2,7 +2,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/fixme.svg)](https://pypi.org/project/fixme/)
 [![Changelog](https://img.shields.io/github/v/release/helloworld/fixme?include_prereleases&label=changelog)](https://github.com/helloworld/fixme/releases)
-[![Tests](https://github.com/helloworld/fixme/workflows/Test/badge.svg)](https://github.com/helloworld/fixme/actions?query=workflow%3ATest)
+[![Tests](https://github.com/helloworld/fixme/actions/workflows/test.yml/badge.svg)](https://github.com/helloworld/fixme/actions?query=workflow%3ATest)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/helloworld/fixme/blob/master/LICENSE)
 
 Use AI to automatically fix bugs
