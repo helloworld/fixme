@@ -5,6 +5,21 @@ import pickle
 from fixme.console import console
 
 
+def require_api_key(func: callable):
+    def wrapper(*args, **kwargs):
+        if not os.environ.get("OPENAI_API_KEY"):
+            console.print(
+                "[bold red]"
+                "Please set the OPENAI_API_KEY environment variable."
+                "[/bold red]"
+            )
+            exit(1)
+
+        return func(*args, **kwargs, openai_api_key=os.environ.get("OPENAI_API_KEY"))
+
+    return wrapper
+
+
 def memoize_function_to_disk(func):
     def wrapper(*args, **kwargs):
         arg_hash = hashlib.sha256((str(args) + str(kwargs)).encode()).hexdigest()

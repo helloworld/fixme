@@ -1,6 +1,6 @@
-import os
 import subprocess
 import tempfile
+import textwrap
 from typing import IO
 
 import click
@@ -8,37 +8,47 @@ import click
 from fixme.api import OpenAIAPI
 from fixme.console import console, mark_step
 from fixme.session import Session
+from fixme.utils import require_api_key
+
+HELP_TEXT = textwrap.dedent(
+    """\
+Use AI to automatically fix bugs based on the output of a given command.
+
+Examples:
+
+  # Debug errors based on the output of a command or a stack trace
+
+  > fixme python main.py
+
+  # Debug errors based on test runner output
+
+  > fixme pytest
+
+  > fixme npm run test
+"""
+)
 
 
-def require_api_key(func: callable):
-    def wrapper(*args, **kwargs):
-        if not os.environ.get("OPENAI_API_KEY"):
-            console.print(
-                "[bold red]"
-                "Please set the OPENAI_API_KEY environment variable."
-                "[/bold red]"
-            )
-            exit(1)
-
-        return func(*args, **kwargs, openai_api_key=os.environ.get("OPENAI_API_KEY"))
-
-    return wrapper
-
-
-@click.group()
+@click.command(
+    name="fixme", context_settings=dict(ignore_unknown_options=True), help=HELP_TEXT
+)
 @click.version_option()
-def cli():
-    """Use AI to automatically fix bugs."""
-
-
-@cli.command(name="command")
 @click.argument(
     "full_command",
+    nargs=-1,  # Accepts any number of arguments
+    type=click.UNPROCESSED,  # Keeps the raw input format
+    required=False,
 )
+@click.pass_context
 @require_api_key
-def fix_from_command(full_command: str, openai_api_key: str):
-    """Fixes issues based on the output of the given command."""
-    mark_step("Running command:", suffix=full_command)
+def cli(ctx: click.Context, full_command: str, openai_api_key: str):
+    if not full_command:
+        click.echo(ctx.get_help())
+        ctx.exit()
+
+    full_command_joined = " ".join(full_command)
+
+    mark_step("Running command:", suffix=full_command_joined)
 
     stdout_contents: bytes = None
     stderr_contents: bytes = None
@@ -88,7 +98,7 @@ def fix_from_command(full_command: str, openai_api_key: str):
     client = OpenAIAPI(api_key=openai_api_key)
     session = Session(
         fixme_client=client,
-        command=full_command,
+        command=full_command_joined,
         stdout=stdout_contents,
         stderr=stderr_contents,
         cwd=cwd,
