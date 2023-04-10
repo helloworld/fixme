@@ -1,7 +1,6 @@
 import re
 from abc import ABC, abstractmethod
-from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import openai
 from pydantic import BaseModel
@@ -30,20 +29,12 @@ class GatherContextResponse(BaseModel):
 
 class DiagnoseIssueResponse(BaseModel):
     debug: Optional[DebugInformation]
-    issue_diagnosis: str
+    issue_diagnosis_stream: Any
 
 
 class GeneratePatchResponse(BaseModel):
     debug: Optional[DebugInformation]
     patch: str
-
-
-class Mode(Enum):
-    CHAT = "chat"
-    COMPLETION = "completion"
-
-
-MODE: Mode = Mode.CHAT
 
 
 class API(ABC):
@@ -78,7 +69,7 @@ class OpenAIAPI(API):
     def __init__(self, api_key):
         self._api_key = api_key
 
-    def request_completion(self, prompt, max_tokens=1024, print_prompt=False):
+    def request_completion(self, prompt, stream=False):
         def _request_chatgpt(prompt):
             response = openai.ChatCompletion.create(
                 model="gpt-4",
@@ -89,28 +80,14 @@ class OpenAIAPI(API):
                     },
                     {"role": "user", "content": prompt["user_prompt"]},
                 ],
+                stream=stream,
             )
+            if stream:
+                return response
+            else:
+                return response.choices[0]["message"]["content"].strip()
 
-            return response.choices[0]["message"]["content"].strip()
-
-        def _request_davinci(prompt):
-            response = openai.Completion.create(
-                engine="text-davinci-003",
-                prompt=prompt,
-                max_tokens=max_tokens,
-                n=1,
-                stop=None,
-                temperature=0.7,
-            )
-
-            return response.choices[0].text.strip()
-
-        if MODE == Mode.CHAT:
-            return _request_chatgpt(prompt)
-        elif MODE == Mode.COMPLETION:
-            return _request_davinci(prompt)
-        else:
-            raise ValueError(f"Unknown mode for request_completion: {MODE}")
+        return _request_chatgpt(prompt)
 
     def gather_context(
         self,
@@ -160,15 +137,11 @@ class OpenAIAPI(API):
             cwd=command_context.cwd,
             gathered_context=gathered_context,
         )
-        issue_diagnosis = self.request_completion(prompt)
+        issue_diagnosis_stream = self.request_completion(prompt, stream=True)
 
         return DiagnoseIssueResponse(
-            issue_diagnosis=issue_diagnosis,
-            debug=(
-                DebugInformation(prompt=prompt, response=issue_diagnosis)
-                if debug
-                else None
-            ),
+            issue_diagnosis_stream=issue_diagnosis_stream,
+            debug=(DebugInformation(prompt=prompt, response=None) if debug else None),
         )
 
     def generate_patch(

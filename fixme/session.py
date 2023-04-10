@@ -3,11 +3,12 @@ import re
 import subprocess
 import tempfile
 
+from rich.live import Live
 from rich.panel import Panel
+from rich.text import Text
 
 from fixme.api import API, CommandContext
 from fixme.console import console, mark_step
-from fixme.utils import memoize_function_to_disk
 
 
 class Session:
@@ -65,7 +66,6 @@ class Session:
             _print_prompt(prompt, header)
             _print_response(response, header)
 
-    @memoize_function_to_disk
     def _gather_context_request(self):
         return self._api_client.gather_context(
             command_context=self._command_context,
@@ -87,7 +87,6 @@ class Session:
         console.print("\n")
         return gathered_context
 
-    @memoize_function_to_disk
     def _diagnose_issue_request(self, gathered_context):
         return self._api_client.diagnose_issue(
             command_context=self._command_context,
@@ -95,13 +94,16 @@ class Session:
         )
 
     def _parse_patch(self, patch):
-        code_block = re.search(r"```diff(.*)```", patch, re.DOTALL)
+        code_block = re.search(r"```diff(.*?)```", patch, re.DOTALL)
         if code_block:
-            patch = code_block.group(1).splitlines()[1:]
+            patch = code_block.group(1).strip().splitlines()[1:]
             patch = [line for line in patch if not re.match(r"index \w+\.\.\w+", line)]
             return "\n".join(patch)
         else:
             return None
+
+    def _clean_patch(self, patch):
+        return patch
 
     def _validate_patch(self, patch, retries=0, max_retries=5):
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
@@ -114,16 +116,32 @@ class Session:
                 subprocess.run(
                     f"git apply --check {patch_file}", shell=True, check=True
                 )
-                return True, patch
+                return True
 
             except subprocess.CalledProcessError:
-                return False, patch
+                return False
 
     def diagnose_issue(self, gathered_context):
         mark_step("Diagnosing issue...")
         response = self._diagnose_issue_request(gathered_context=gathered_context)
-        issue_diagnosis = response.issue_diagnosis
-        self._print_output(issue_diagnosis, header="Issue Diagnosis")
+        issue_diagnosis_stream = response.issue_diagnosis_stream
+
+        issue_diagnosis = ""
+        with Live(auto_refresh=False) as live:
+            for chunk in issue_diagnosis_stream:
+                if "content" not in chunk["choices"][0]["delta"]:
+                    continue
+                message_content = chunk["choices"][0]["delta"]["content"]
+                issue_diagnosis += message_content
+                live.update(
+                    Panel.fit(
+                        Text(issue_diagnosis),
+                        title="Issue Diagnosis",
+                        border_style="green",
+                    )
+                )
+                live.refresh()
+
         return issue_diagnosis
 
     def _generate_patch_request(self, gathered_context, issue_diagnosis):
@@ -152,9 +170,10 @@ class Session:
         )
         patch = response.patch
         parsed_patch = self._parse_patch(patch)
-        self._print_output(parsed_patch, header="Patch")
+        cleaned_patch = self._clean_patch(parsed_patch)
+        self._print_output(cleaned_patch, header="Patch")
 
-        is_patch_valid, patch = self._validate_patch(parsed_patch)
+        is_patch_valid = self._validate_patch(cleaned_patch)
         if not is_patch_valid:
             console.print(
                 Panel.fit(
@@ -182,7 +201,7 @@ class Session:
                 ),
             )
 
-        return patch
+        return cleaned_patch
 
     def apply_patch(self, patch):
         mark_step("Applying patch...")
