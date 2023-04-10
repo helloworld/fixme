@@ -1,21 +1,15 @@
-from fixme.prompts.helpers import preamble
+from fixme.prompts.helpers import command_prompt, system_prompt
 
 
-gather_information_prompt = (
-    lambda command, stdout, stderr, cwd: f"""{preamble(command, stdout, stderr, cwd)}
+def gather_information_prompt(command, stdout, stderr, cwd):
+    user_prompt = f"""{command_prompt(command, stdout, stderr, cwd)}
 
-I am now trying to gather more information to help me fix the bug.
-I can run the following commands. Provide a list of commands to run to gather context suffcient context.
-Use the minimum number of commands to gather the information you need. Order the commands from most important to least important.
-Be sure to only use paths and files you are sure exist and are relevant to the bug.
-Each command should be on a new line, and must be in the following format:
-1. LIST_FILES_IN_DIRECTORY(path_to_directory)
-2. CAT_FILE(path_to_file)
-3. GREP(path,search_string)
+To gather context for fixing the bug, you can run the following commands:
+1. LS(path_to_directory) - List files in the directory to see if anything looks unusual or unexpected.
+2. CAT(path_to_file) - View the contents of a specific file to see if it contains relevant information.
+3. GREP(path, search_string) - Search for specific text within a file to find relevant information. Use sparingly as it can be resource-intensive.
 
-I will run each command and gather the output to help me fix the bug. 
-
-First, explain why each command is important to gather context for the bug. Then, provide the commands to run.
+When providing a list of commands for the bot to run, order the commands from most important to least important and use the minimum number of commands to gather the necessary information. Only use relevant and existing paths and files, and avoid using unnecessary commands that may not be relevant to the bug.
 
 Here is an example response:
 
@@ -26,6 +20,10 @@ CAT_FILE(/home/helloworld/main.py)
 GREP(/home/helloworld/.bashrc,hello)
 ```
 
-Here are the commands to run:
+Here are the recommended commands:
 """
-)
+
+    return {
+        "system_prompt": system_prompt,
+        "user_prompt": user_prompt,
+    }

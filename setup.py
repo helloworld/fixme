@@ -1,5 +1,6 @@
-from setuptools import setup, find_packages
 import os
+
+from setuptools import find_packages, setup
 
 VERSION = "0.1"
 
@@ -32,6 +33,13 @@ setup(
         fixme=fixme.cli:cli
     """,
     install_requires=["click", "openai", "rich"],
-    extras_require={"test": ["pytest"]},
+    extras_require={
+        "black": ["black"],
+        "pyright": ["pyright"],
+        "ruff": ["ruff"],
+        "test": [
+            "pytest",
+        ],
+    },
     python_requires=">=3.7",
 )

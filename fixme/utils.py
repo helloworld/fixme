@@ -2,6 +2,8 @@ import hashlib
 import os
 import pickle
 
+from fixme.console import console
+
 
 def memoize_function_to_disk(func):
     def wrapper(*args, **kwargs):
@@ -15,6 +17,7 @@ def memoize_function_to_disk(func):
         filename = os.path.join(cache_dir, filename)
 
         if os.path.isfile(filename):
+            console.print("[bold blue]Loading from cache...[/bold blue]]")
             with open(filename, "rb") as f:
                 result = pickle.load(f)
         else:

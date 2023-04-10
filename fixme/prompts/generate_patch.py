@@ -1,12 +1,18 @@
-from fixme.prompts.helpers import preamble
-from fixme.prompts.helpers import gathered_info_message
+from fixme.prompts.helpers import (
+    command_prompt,
+    gathered_context_message,
+    system_prompt,
+)
 
-generate_patch_prompt = (
-    lambda command, stdout, stderr, cwd, gathered_info, issue_diagnosis: f"""{preamble(command, stdout, stderr, cwd)}
+
+def generate_patch_prompt(
+    command, stdout, stderr, cwd, gathered_context, issue_diagnosis
+):
+    user_prompt = f"""{command_prompt(command, stdout, stderr, cwd)}
 
 Here is some extra information I gathered:
 
-{gathered_info_message(gathered_info)}
+{gathered_context_message(gathered_context)}
 
 Here is the issue diagnosis:
 
@@ -27,4 +33,8 @@ Wrap the patch in a code block like so:
 
 Here is the explanation and patch:
 """
-)
+
+    return {
+        "system_prompt": system_prompt,
+        "user_prompt": user_prompt,
+    }

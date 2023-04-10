@@ -8,13 +8,24 @@ def output_message(stdout, stderr):
     return output
 
 
-def preamble(command, stdout, stderr, cwd):
-    return f"""I am a bot that can help you fix bugs. The bug was the result of the following command: `{command}` in the current working directory: `{cwd}`.
-
-I have run the command gathered the following outputs:
-{output_message(stdout, stderr)}"""
-
-
-gathered_info_message = lambda gathered_info: "\n".join(
-    [f"{message}:\n{output}" for message, output in gathered_info]
+system_prompt = (
+    "As an expert programming bot, you are capable of fixing programming bugs given the"
+    " terminal output of a command. In order to do this, you need to gather context"
+    " about the bug by running specific commands."
 )
+
+
+def command_prompt(command, stdout, stderr, cwd):
+    return (
+        f"For this task, a bug was caused by the command '{command}' in directory"
+        f" '{cwd}'. The command produced the following"
+        f" outputs:\n{output_message(stdout, stderr)}"
+    )
+
+
+def gathered_context_message(gathered_context):
+    return "\n".join([f"{message}:\n{output}" for message, output in gathered_context])
+
+
+def preamble():
+    raise NotImplementedError()
