@@ -6,11 +6,9 @@ from typing import Dict, List, Optional, Tuple
 import openai
 from pydantic import BaseModel
 
-from fixme.prompts import (
-    diagnose_issue_prompt,
-    gather_information_prompt,
-    generate_patch_prompt,
-)
+from fixme.prompts.diagnose_issue import diagnose_issue_prompt
+from fixme.prompts.gather_information import gather_information_prompt
+from fixme.prompts.generate_patch import generate_patch_prompt
 
 
 class DebugInformation(BaseModel):
