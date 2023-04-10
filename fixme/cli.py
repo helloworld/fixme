@@ -42,12 +42,14 @@ Examples:
 @click.pass_context
 @require_api_key
 def cli(ctx: click.Context, full_command: str, openai_api_key: str):
+    if ctx.invoked_subcommand is not None:
+        return
+
     if not full_command:
-        click.echo(ctx.get_help())
+        click.echo(ctx.command.get_help(ctx))
         ctx.exit()
 
     full_command_joined = " ".join(full_command)
-
     mark_step("Running command:", suffix=full_command_joined)
 
     stdout_contents: bytes = None
